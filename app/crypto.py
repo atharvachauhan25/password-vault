@@ -48,7 +48,7 @@ def create_canary(fernet_key: bytes) -> str:
     """Encrypt the canary plaintext to create a verification token.
 
     The canary is stored in the database. On unlock, we attempt to decrypt it
-    with the candidate key — if it succeeds, the master password is correct.
+    with the candidate key. If it succeeds, the master password is correct.
 
     Args:
         fernet_key: A valid Fernet key (from derive_fernet_key).
