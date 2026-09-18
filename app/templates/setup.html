@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Create Your Vault - Password Vault{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5 col-lg-4">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-shield-plus fs-1 text-primary"></i>
+                    <h3 class="mt-2">Create Your Vault</h3>
+                    <p class="text-secondary">Set a master password to secure your vault.</p>
+                </div>
+
+                <form method="POST" action="{{ url_for('auth.setup') }}" id="setupForm">
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Master Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password"
+                                   name="password" required autofocus>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="togglePasswordVisibility('password', this)">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                        <!-- Strength meter -->
+                        <div class="strength-meter mt-2">
+                            <div class="strength-bar" id="strengthBar"></div>
+                        </div>
+                        <small class="text-secondary" id="strengthLabel"></small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="confirm" class="form-label">Confirm Password</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="confirm"
+                                   name="confirm" required>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    onclick="togglePasswordVisibility('confirm', this)">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                        <i class="bi bi-shield-check"></i> Create Vault
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/zxcvbn.js') }}"></script>
+<script>
+    function togglePasswordVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    }
+
+    // Real-time strength meter using vendored zxcvbn
+    const passwordInput = document.getElementById('password');
+    const strengthBar = document.getElementById('strengthBar');
+    const strengthLabel = document.getElementById('strengthLabel');
+    const colors = ['#dc3545', '#dc3545', '#ffc107', '#0d6efd', '#198754'];
+    const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+
+    passwordInput.addEventListener('input', () => {
+        const val = passwordInput.value;
+        if (!val) {
+            strengthBar.style.width = '0%';
+            strengthLabel.textContent = '';
+            return;
+        }
+        const result = zxcvbn(val);
+        const score = result.score; // 0-4
+        const widths = ['5%', '25%', '50%', '75%', '100%'];
+        strengthBar.style.width = widths[score];
+        strengthBar.style.backgroundColor = colors[score];
+        strengthLabel.textContent = labels[score];
+        strengthLabel.style.color = colors[score];
+    });
+
+    // Loading state on submit (PBKDF2 is slow)
+    document.getElementById('setupForm').addEventListener('submit', () => {
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Creating vault...';
+    });
+</script>
+{% endblock %}

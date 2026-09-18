@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Password Vault{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg border-bottom">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+                <i class="bi bi-shield-lock-fill text-primary fs-4"></i>
+                <span class="fw-bold">Password Vault</span>
+            </a>
+            <div class="d-flex align-items-center gap-2">
+                {% if session.get('fernet_key') %}
+                <span class="badge bg-success"><i class="bi bi-unlock-fill"></i> Unlocked</span>
+                <form action="{{ url_for('auth.lock') }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-lock-fill"></i> Lock
+                    </button>
+                </form>
+                {% else %}
+                <span class="badge bg-secondary"><i class="bi bi-lock-fill"></i> Locked</span>
+                {% endif %}
+                <button class="btn btn-outline-secondary btn-sm" id="themeToggle" title="Toggle theme">
+                    <i class="bi bi-sun-fill"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    <div class="container mt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Page Content -->
+    <main class="container py-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script>
+        // Theme toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const icon = themeToggle.querySelector('i');
+
+        themeToggle.addEventListener('click', () => {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-bs-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-bs-theme', next);
+            icon.className = next === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+            localStorage.setItem('theme', next);
+        });
+
+        // Restore saved theme
+        const saved = localStorage.getItem('theme');
+        if (saved) {
+            document.documentElement.setAttribute('data-bs-theme', saved);
+            icon.className = saved === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
