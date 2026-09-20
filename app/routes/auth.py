@@ -83,7 +83,7 @@ def unlock():
 
     # Already unlocked
     if "fernet_key" in session:
-        return redirect(url_for("vault_dashboard_placeholder"))
+        return redirect(url_for("vault.dashboard"))
 
     expired = request.args.get("expired", False)
 
@@ -106,7 +106,7 @@ def unlock():
             session.clear()
             session["fernet_key"] = fernet_key.decode("utf-8")
             session["last_activity"] = time.time()
-            return redirect(url_for("vault_dashboard_placeholder"))
+            return redirect(url_for("vault.dashboard"))
         else:
             flash("Invalid master password.", "danger")
             return render_template("unlock.html")

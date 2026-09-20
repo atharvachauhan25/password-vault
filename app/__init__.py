@@ -1,6 +1,6 @@
 import time
 
-from flask import Flask, redirect, render_template, session, url_for
+from flask import Flask, redirect, session, url_for
 from flask_session import Session
 
 from .config import Config
@@ -20,20 +20,18 @@ def create_app(config_class=Config):
 
     # Register blueprints
     from .routes.auth import auth
-    app.register_blueprint(auth)
+    from .routes.vault import vault
+    from .routes.api import api
 
-    # Temporary vault dashboard placeholder (replaced in Milestone 7)
-    @app.route("/vault/")
-    def vault_dashboard_placeholder():
-        if "fernet_key" not in session:
-            return redirect(url_for("auth.unlock"))
-        return ("<h2>Vault Dashboard</h2>"
-                "<p>Placeholder - the full dashboard is coming in Milestone 7.</p>"
-                '<a href="/auth/lock" onclick="fetch(\'/auth/lock\', {method:\'POST\'})">Lock</a>')
+    app.register_blueprint(auth)
+    app.register_blueprint(vault)
+    app.register_blueprint(api)
 
     # Root redirect
     @app.route("/")
     def index():
+        if "fernet_key" in session:
+            return redirect(url_for("vault.dashboard"))
         return redirect(url_for("auth.setup"))
 
     # Inactivity timeout check
@@ -44,6 +42,7 @@ def create_app(config_class=Config):
         if request.endpoint and (
             request.endpoint == "static"
             or request.endpoint.startswith("auth.")
+            or request.endpoint.startswith("api.")
         ):
             return
 
