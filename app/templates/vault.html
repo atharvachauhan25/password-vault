@@ -179,6 +179,10 @@
                                 <i class="bi bi-dice-5"></i>
                             </button>
                         </div>
+                        <div class="strength-meter mt-1">
+                            <div class="strength-bar" id="addStrengthBar"></div>
+                        </div>
+                        <small class="text-secondary" id="addStrengthLabel"></small>
                     </div>
                     <div class="mb-3">
                         <label for="add-url" class="form-label">URL</label>
@@ -266,5 +270,46 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='vendor/zxcvbn.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+    // Live strength meter in add modal
+    const addPwInput = document.getElementById('add-password');
+    const addBar = document.getElementById('addStrengthBar');
+    const addLabel = document.getElementById('addStrengthLabel');
+    const colors = ['#dc3545', '#dc3545', '#ffc107', '#0d6efd', '#198754'];
+    const labels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+    const widths = ['5%', '25%', '50%', '75%', '100%'];
+
+    if (addPwInput) {
+        addPwInput.addEventListener('input', () => {
+            const val = addPwInput.value;
+            if (!val) {
+                addBar.style.width = '0%';
+                addLabel.textContent = '';
+                return;
+            }
+            const result = zxcvbn(val);
+            addBar.style.width = widths[result.score];
+            addBar.style.backgroundColor = colors[result.score];
+            addLabel.textContent = labels[result.score];
+            addLabel.style.color = colors[result.score];
+        });
+
+        // Also update strength when password is generated via dice button
+        const observer = new MutationObserver(() => {
+            addPwInput.dispatchEvent(new Event('input'));
+        });
+        observer.observe(addPwInput, { attributes: true, attributeFilter: ['value'] });
+
+        // Fallback: re-check after generate button click
+        const genBtn = document.getElementById('addGenBtn');
+        if (genBtn) {
+            const origHandler = genBtn.onclick;
+            genBtn.addEventListener('click', () => {
+                setTimeout(() => addPwInput.dispatchEvent(new Event('input')), 300);
+            });
+        }
+    }
+</script>
 {% endblock %}

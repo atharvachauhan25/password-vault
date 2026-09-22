@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Password Generator — Password Vault{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow">
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <i class="bi bi-dice-5 fs-1 text-primary"></i>
+                    <h3 class="mt-2">Password Generator</h3>
+                    <p class="text-secondary">Generate strong, random passwords</p>
+                </div>
+
+                <!-- Generated Password Display -->
+                <div class="generated-password-box mb-4">
+                    <div class="input-group input-group-lg">
+                        <input type="text" class="form-control font-monospace" id="generatedPassword"
+                               value="" readonly placeholder="Click Generate">
+                        <button class="btn btn-outline-secondary" type="button" id="copyGenerated" title="Copy">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+
+                    <!-- Strength Meter -->
+                    <div class="strength-meter mt-2">
+                        <div class="strength-bar" id="genStrengthBar"></div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-secondary" id="genStrengthLabel"></small>
+                        <small class="text-secondary" id="genStrengthDetail"></small>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">
+                        Length: <span id="lengthValue" class="text-primary">16</span>
+                    </label>
+                    <input type="range" class="form-range" id="lengthSlider"
+                           min="4" max="64" value="16">
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="useUpper" checked>
+                            <label class="form-check-label" for="useUpper">
+                                Uppercase <small class="text-secondary">(A-Z)</small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="useLower" checked>
+                            <label class="form-check-label" for="useLower">
+                                Lowercase <small class="text-secondary">(a-z)</small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="useDigits" checked>
+                            <label class="form-check-label" for="useDigits">
+                                Numbers <small class="text-secondary">(0-9)</small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="useSymbols" checked>
+                            <label class="form-check-label" for="useSymbols">
+                                Symbols <small class="text-secondary">(!@#...)</small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="excludeSimilar">
+                            <label class="form-check-label" for="excludeSimilar">
+                                Exclude ambiguous characters <small class="text-secondary">(i, l, 1, L, o, 0, O)</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary btn-lg w-100" id="generateBtn">
+                    <i class="bi bi-arrow-repeat"></i> Generate Password
+                </button>
+
+                <!-- Strength Breakdown -->
+                <div class="mt-4 d-none" id="strengthBreakdown">
+                    <h6 class="fw-bold"><i class="bi bi-bar-chart"></i> Strength Analysis</h6>
+                    <div id="strengthFeedback"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Check Any Password -->
+        <div class="card shadow mt-4">
+            <div class="card-body p-4">
+                <h5><i class="bi bi-shield-check"></i> Check Any Password</h5>
+                <p class="text-secondary small">Paste or type a password to check its strength using zxcvbn.</p>
+                <div class="input-group mb-2">
+                    <input type="password" class="form-control" id="checkPasswordInput"
+                           placeholder="Type a password to check...">
+                    <button class="btn btn-outline-secondary" type="button"
+                            onclick="togglePasswordVisibility('checkPasswordInput', this)">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
+                <div class="strength-meter mt-2">
+                    <div class="strength-bar" id="checkStrengthBar"></div>
+                </div>
+                <div class="d-flex justify-content-between mt-1">
+                    <small class="text-secondary" id="checkStrengthLabel"></small>
+                    <small class="text-secondary" id="checkStrengthDetail"></small>
+                </div>
+                <div id="checkFeedback" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/zxcvbn.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/generator.js') }}"></script>
+{% endblock %}

@@ -19,6 +19,12 @@
             </a>
             <div class="d-flex align-items-center gap-2">
                 {% if session.get('fernet_key') %}
+                <a href="{{ url_for('vault.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-safe"></i> Vault
+                </a>
+                <a href="{{ url_for('vault.generator_page') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-dice-5"></i> Generator
+                </a>
                 <span class="badge bg-success"><i class="bi bi-unlock-fill"></i> Unlocked</span>
                 <form action="{{ url_for('auth.lock') }}" method="POST" class="d-inline">
                     <button type="submit" class="btn btn-outline-secondary btn-sm">

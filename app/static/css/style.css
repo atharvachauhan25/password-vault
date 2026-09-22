@@ -93,3 +93,22 @@
 #searchInput:focus {
     border-color: var(--bs-primary);
 }
+
+/* ---- Generator page ---- */
+.generated-password-box .form-control {
+    font-size: 1.15rem;
+    letter-spacing: 1px;
+}
+
+.form-range::-webkit-slider-thumb {
+    cursor: pointer;
+}
+
+.form-range::-moz-range-thumb {
+    cursor: pointer;
+}
+
+/* ---- Form switch labels ---- */
+.form-check-label small {
+    opacity: 0.7;
+}

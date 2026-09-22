@@ -212,3 +212,10 @@ def toggle_favorite(entry_id):
     db.commit()
 
     return redirect(url_for("vault.dashboard"))
+
+
+@vault.route("/generator")
+@login_required
+def generator_page():
+    """Dedicated password generator page with strength meter."""
+    return render_template("generator.html")
