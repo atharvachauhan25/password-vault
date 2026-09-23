@@ -45,6 +45,7 @@ def dashboard():
     category_id = request.args.get("category", type=int)
     favorites_only = request.args.get("favorites") == "1"
     search_query = request.args.get("q", "").strip()
+    sort_by = request.args.get("sort", "updated")  # updated, title, created
 
     # Build query
     query = "SELECT * FROM vault_entries WHERE 1=1"
@@ -58,10 +59,15 @@ def dashboard():
         query += " AND is_favorite = 1"
 
     if search_query:
-        query += " AND title LIKE ?"
-        params.append(f"%{search_query}%")
+        query += " AND (title LIKE ? OR url LIKE ?)"
+        params.extend([f"%{search_query}%", f"%{search_query}%"])
 
-    query += " ORDER BY updated_at DESC"
+    sort_options = {
+        "updated": "updated_at DESC",
+        "title": "title ASC",
+        "created": "created_at DESC",
+    }
+    query += f" ORDER BY {sort_options.get(sort_by, 'updated_at DESC')}"
 
     rows = db.execute(query, params).fetchall()
 
@@ -98,6 +104,7 @@ def dashboard():
         active_category=category_id,
         favorites_only=favorites_only,
         search_query=search_query,
+        sort_by=sort_by,
     )
 
 
@@ -211,6 +218,54 @@ def toggle_favorite(entry_id):
     )
     db.commit()
 
+    return redirect(url_for("vault.dashboard"))
+
+
+@vault.route("/categories/add", methods=["POST"])
+@login_required
+def add_category():
+    """Add a new custom category."""
+    db = get_db()
+    name = request.form.get("name", "").strip()
+    icon = request.form.get("icon", "bi-folder").strip()
+    badge_color = request.form.get("badge_color", "secondary").strip()
+
+    if not name:
+        flash("Category name is required.", "danger")
+        return redirect(url_for("vault.dashboard"))
+
+    # Check for duplicate
+    existing = db.execute("SELECT id FROM categories WHERE name = ?", (name,)).fetchone()
+    if existing:
+        flash(f"Category '{name}' already exists.", "warning")
+        return redirect(url_for("vault.dashboard"))
+
+    db.execute(
+        "INSERT INTO categories (name, icon, badge_color) VALUES (?, ?, ?)",
+        (name, icon, badge_color),
+    )
+    db.commit()
+
+    flash(f"Category '{name}' created.", "success")
+    return redirect(url_for("vault.dashboard"))
+
+
+@vault.route("/categories/delete/<int:cat_id>", methods=["POST"])
+@login_required
+def delete_category(cat_id):
+    """Delete a category. Entries in it become uncategorized."""
+    db = get_db()
+
+    cat = db.execute("SELECT name FROM categories WHERE id = ?", (cat_id,)).fetchone()
+    if not cat:
+        flash("Category not found.", "danger")
+        return redirect(url_for("vault.dashboard"))
+
+    # Entries using this category become uncategorized (ON DELETE SET NULL handles this)
+    db.execute("DELETE FROM categories WHERE id = ?", (cat_id,))
+    db.commit()
+
+    flash(f"Category '{cat['name']}' deleted.", "info")
     return redirect(url_for("vault.dashboard"))
 
 
