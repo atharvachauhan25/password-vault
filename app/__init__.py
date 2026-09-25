@@ -55,4 +55,12 @@ def create_app(config_class=Config):
                 return redirect(url_for("auth.unlock", expired=1))
             session["last_activity"] = now
 
+    # Make config values available in all templates
+    @app.context_processor
+    def inject_config():
+        return {
+            "INACTIVITY_TIMEOUT": app.config.get("INACTIVITY_TIMEOUT", 300),
+            "CLIPBOARD_CLEAR_SECONDS": app.config.get("CLIPBOARD_CLEAR_SECONDS", 30),
+        }
+
     return app

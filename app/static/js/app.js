@@ -1,7 +1,7 @@
 /**
  * Vault dashboard UI interactions:
- * - Password visibility toggle
- * - Copy to clipboard (basic — enhanced in Milestone 10)
+ * - Password visibility toggle (cards + modals)
+ * - Copy to clipboard with auto-clear + toast notifications
  * - Edit modal population
  * - Quick generate button in add modal
  */
@@ -21,6 +21,88 @@ function togglePasswordVisibility(inputId, btn) {
     }
 }
 
+
+// --- Toast Helper ---
+
+let clipboardClearTimer = null;
+let clipboardCountdownInterval = null;
+
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const icons = {
+        success: 'bi-check-circle-fill',
+        info: 'bi-info-circle-fill',
+        warning: 'bi-exclamation-triangle-fill',
+        danger: 'bi-x-circle-fill',
+    };
+
+    const html = `
+        <div class="toast show border-${type}" role="alert">
+            <div class="toast-header">
+                <i class="bi ${icons[type] || icons.info} text-${type} me-2"></i>
+                <strong class="me-auto">${type === 'success' ? 'Success' : 'Notice'}</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">${message}</div>
+        </div>`;
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    const toastNode = wrapper.firstElementChild;
+    container.appendChild(toastNode);
+
+    const toast = new bootstrap.Toast(toastNode, { delay: duration });
+    toast.show();
+    toastNode.addEventListener('hidden.bs.toast', () => toastNode.remove());
+}
+
+function showClipboardToast(clearSeconds) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    // Remove any existing clipboard toast
+    const existing = document.getElementById('clipboardToast');
+    if (existing) existing.remove();
+
+    const html = `
+        <div class="toast show border-success" role="alert" id="clipboardToast">
+            <div class="toast-header">
+                <i class="bi bi-clipboard-check text-success me-2"></i>
+                <strong class="me-auto">Copied!</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                Copied to clipboard. Auto-clearing in <strong id="clipClearCountdown">${clearSeconds}</strong>s.
+            </div>
+        </div>`;
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    const toastNode = wrapper.firstElementChild;
+    container.appendChild(toastNode);
+
+    const toast = new bootstrap.Toast(toastNode, { autohide: false });
+    toast.show();
+
+    // Countdown
+    let remaining = clearSeconds;
+    const countdownEl = toastNode.querySelector('#clipClearCountdown');
+
+    if (clipboardCountdownInterval) clearInterval(clipboardCountdownInterval);
+    clipboardCountdownInterval = setInterval(() => {
+        remaining--;
+        if (countdownEl) countdownEl.textContent = Math.max(0, remaining);
+        if (remaining <= 0) {
+            clearInterval(clipboardCountdownInterval);
+            clipboardCountdownInterval = null;
+            toast.hide();
+        }
+    }, 1000);
+
+    toastNode.addEventListener('hidden.bs.toast', () => toastNode.remove());
+}
+
+
 document.addEventListener('DOMContentLoaded', () => {
     initPasswordToggles();
     initCopyButtons();
@@ -28,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// --- Password Visibility Toggle ---
+// --- Password Visibility Toggle (cards) ---
 
 function initPasswordToggles() {
     document.querySelectorAll('.toggle-password-btn').forEach(btn => {
@@ -49,30 +131,59 @@ function initPasswordToggles() {
 }
 
 
-// --- Copy to Clipboard (basic version) ---
+// --- Copy to Clipboard with auto-clear ---
+
+// Read the clear timeout from the page (injected via context processor)
+const CLIPBOARD_CLEAR_SECONDS = parseInt(
+    document.body.dataset.clipboardClear || '30', 10
+);
+
+async function copyToClipboard(text) {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            // Fallback for non-HTTPS localhost
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+        }
+
+        // Show toast with countdown
+        showClipboardToast(CLIPBOARD_CLEAR_SECONDS);
+
+        // Schedule auto-clear
+        if (clipboardClearTimer) clearTimeout(clipboardClearTimer);
+        clipboardClearTimer = setTimeout(async () => {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText('');
+                }
+            } catch (e) {
+                // Clipboard clear failed - browser may not allow writing without user gesture
+            }
+            clipboardClearTimer = null;
+        }, CLIPBOARD_CLEAR_SECONDS * 1000);
+
+        return true;
+    } catch (err) {
+        console.error('Copy failed:', err);
+        showToast('Failed to copy to clipboard.', 'danger');
+        return false;
+    }
+}
 
 function initCopyButtons() {
     document.querySelectorAll('.copy-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const text = btn.dataset.copy;
-            try {
-                if (navigator.clipboard && window.isSecureContext) {
-                    await navigator.clipboard.writeText(text);
-                } else {
-                    // Fallback for non-HTTPS localhost
-                    const ta = document.createElement('textarea');
-                    ta.value = text;
-                    ta.style.position = 'fixed';
-                    ta.style.opacity = '0';
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    ta.remove();
-                }
-                showCopyFeedback(btn);
-            } catch (err) {
-                console.error('Copy failed:', err);
-            }
+            const success = await copyToClipboard(text);
+            if (success) showCopyFeedback(btn);
         });
     });
 }

@@ -29,3 +29,6 @@ class Config:
 
     # Inactivity auto-lock timeout in seconds (default: 5 minutes)
     INACTIVITY_TIMEOUT = int(os.environ.get("INACTIVITY_TIMEOUT", 300))
+
+    # Clipboard auto-clear timeout in seconds (default: 30 seconds)
+    CLIPBOARD_CLEAR_SECONDS = int(os.environ.get("CLIPBOARD_CLEAR_SECONDS", 30))
