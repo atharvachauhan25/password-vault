@@ -63,11 +63,11 @@ def dashboard():
         params.extend([f"%{search_query}%", f"%{search_query}%"])
 
     sort_options = {
-        "updated": "updated_at DESC",
-        "title": "title ASC",
-        "created": "created_at DESC",
+        "updated": "updated_at DESC, id DESC",
+        "title": "title ASC, id ASC",
+        "created": "created_at DESC, id DESC",
     }
-    query += f" ORDER BY {sort_options.get(sort_by, 'updated_at DESC')}"
+    query += f" ORDER BY {sort_options.get(sort_by, 'updated_at DESC, id DESC')}"
 
     rows = db.execute(query, params).fetchall()
 
