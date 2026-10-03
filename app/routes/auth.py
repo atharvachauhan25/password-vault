@@ -4,6 +4,7 @@ import time
 
 from flask import (
     Blueprint,
+    current_app,
     flash,
     redirect,
     render_template,
@@ -18,12 +19,42 @@ from ..generator import check_password_strength
 
 auth = Blueprint("auth", __name__, url_prefix="/auth")
 
+# In-memory brute-force tracking (per-process; sufficient for single-user local app)
+_unlock_attempts = {"count": 0, "last_attempt": 0, "locked_until": 0}
+
 
 def is_vault_initialized():
     """Check whether a vault has been set up (vault_meta row exists)."""
     db = get_db()
     row = db.execute("SELECT id FROM vault_meta WHERE id = 1").fetchone()
     return row is not None
+
+
+def _check_rate_limit():
+    """Check if unlock attempts are rate-limited. Returns seconds remaining, or 0."""
+    now = time.time()
+    if now < _unlock_attempts["locked_until"]:
+        return int(_unlock_attempts["locked_until"] - now) + 1
+    return 0
+
+
+def _record_failed_attempt():
+    """Record a failed unlock attempt and trigger cooldown if threshold reached."""
+    max_attempts = current_app.config.get("MAX_UNLOCK_ATTEMPTS", 5)
+    cooldown = current_app.config.get("UNLOCK_COOLDOWN_SECONDS", 30)
+
+    _unlock_attempts["count"] += 1
+    _unlock_attempts["last_attempt"] = time.time()
+
+    if _unlock_attempts["count"] >= max_attempts:
+        _unlock_attempts["locked_until"] = time.time() + cooldown
+
+
+def _reset_attempts():
+    """Reset attempt counter after successful unlock."""
+    _unlock_attempts["count"] = 0
+    _unlock_attempts["last_attempt"] = 0
+    _unlock_attempts["locked_until"] = 0
 
 
 @auth.route("/setup", methods=["GET", "POST"])
@@ -64,7 +95,7 @@ def setup():
         )
         db.commit()
 
-        # Establish authenticated session
+        # Establish authenticated session (clear first to prevent session fixation)
         session.clear()
         session["fernet_key"] = fernet_key.decode("utf-8")
         session["last_activity"] = time.time()
@@ -88,6 +119,12 @@ def unlock():
     expired = request.args.get("expired", False)
 
     if request.method == "POST":
+        # Brute-force rate limiting
+        wait = _check_rate_limit()
+        if wait > 0:
+            flash(f"Too many failed attempts. Please wait {wait} seconds.", "danger")
+            return render_template("unlock.html", rate_limited=True, wait_seconds=wait)
+
         password = request.form.get("password", "")
 
         if not password:
@@ -102,13 +139,24 @@ def unlock():
         )
 
         if is_valid:
-            # Establish a fresh authenticated session
+            # Reset brute-force counter
+            _reset_attempts()
+
+            # Establish a fresh authenticated session (session fixation protection)
             session.clear()
             session["fernet_key"] = fernet_key.decode("utf-8")
             session["last_activity"] = time.time()
             return redirect(url_for("vault.dashboard"))
         else:
-            flash("Invalid master password.", "danger")
+            _record_failed_attempt()
+            remaining_wait = _check_rate_limit()
+            if remaining_wait > 0:
+                flash(f"Too many failed attempts. Locked for {remaining_wait} seconds.", "danger")
+                return render_template("unlock.html", rate_limited=True, wait_seconds=remaining_wait)
+            else:
+                max_attempts = current_app.config.get("MAX_UNLOCK_ATTEMPTS", 5)
+                remaining = max_attempts - _unlock_attempts["count"]
+                flash(f"Invalid master password. {remaining} attempts remaining.", "danger")
             return render_template("unlock.html")
 
     return render_template("unlock.html", expired=expired)

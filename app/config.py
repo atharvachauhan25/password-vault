@@ -1,4 +1,6 @@
 import os
+
+from cachelib import FileSystemCache
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,14 +13,22 @@ class Config:
     # Auto-generated if not set, but sessions won't persist across server restarts.
     SECRET_KEY = os.environ.get("FLASK_SECRET_KEY") or os.urandom(32).hex()
 
-    # Server-side session configuration (Flask-Session)
-    SESSION_TYPE = "filesystem"
-    SESSION_FILE_DIR = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "flask_session",
+    # Server-side session configuration (Flask-Session 0.8+)
+    # Use CacheLib backend directly to avoid deprecation warnings.
+    SESSION_TYPE = "cachelib"
+    SESSION_CACHELIB = FileSystemCache(
+        cache_dir=os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "flask_session",
+        ),
+        threshold=500,
     )
     SESSION_PERMANENT = False
-    SESSION_USE_SIGNER = True
+    SESSION_USE_SIGNER = False  # Deprecated in 0.8, disable to suppress warning
+
+    # Session cookie settings
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
 
     # Database
     DATABASE_PATH = os.path.join(
@@ -32,3 +42,7 @@ class Config:
 
     # Clipboard auto-clear timeout in seconds (default: 30 seconds)
     CLIPBOARD_CLEAR_SECONDS = int(os.environ.get("CLIPBOARD_CLEAR_SECONDS", 30))
+
+    # Max failed unlock attempts before cooldown (brute-force protection)
+    MAX_UNLOCK_ATTEMPTS = int(os.environ.get("MAX_UNLOCK_ATTEMPTS", 5))
+    UNLOCK_COOLDOWN_SECONDS = int(os.environ.get("UNLOCK_COOLDOWN_SECONDS", 30))

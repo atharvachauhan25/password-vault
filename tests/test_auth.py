@@ -4,6 +4,7 @@ import os
 import tempfile
 
 import pytest
+from cachelib import FileSystemCache
 
 from app import create_app
 from app.config import Config
@@ -12,11 +13,12 @@ from app.config import Config
 class AppTestConfig(Config):
     """Test configuration with a temporary database."""
     TESTING = True
-    SESSION_TYPE = "filesystem"
+    SESSION_TYPE = "cachelib"
+    SESSION_USE_SIGNER = False
 
     def __init__(self, db_path, session_dir):
         self.DATABASE_PATH = db_path
-        self.SESSION_FILE_DIR = session_dir
+        self.SESSION_CACHELIB = FileSystemCache(cache_dir=session_dir, threshold=500)
 
 
 @pytest.fixture
@@ -37,6 +39,19 @@ def client(app):
 
 
 STRONG_PASSWORD = "MyStr0ng!Pass#99"
+
+
+@pytest.fixture
+def setup_client(client):
+    """A client with the vault initialized (master password set) but not unlocked."""
+    from app.routes.auth import _reset_attempts
+    _reset_attempts()  # Reset rate limiter between tests
+    client.post("/auth/setup", data={
+        "password": STRONG_PASSWORD,
+        "confirm": STRONG_PASSWORD,
+    })
+    client.post("/auth/lock")
+    return client
 
 
 class TestSetupFlow:
@@ -172,3 +187,88 @@ class TestLockFlow:
         resp = client.post("/auth/lock", follow_redirects=False)
         assert resp.status_code == 302
         assert "/auth/unlock" in resp.location
+
+
+class TestBruteForceProtection:
+    """Tests for unlock rate limiting."""
+
+    def test_failed_attempts_show_remaining(self, setup_client):
+        """Failed unlock should show remaining attempts."""
+        resp = setup_client.post("/auth/unlock", data={
+            "password": "wrong_password",
+        }, follow_redirects=True)
+        assert b"attempts remaining" in resp.data
+
+    def test_rate_limit_after_max_attempts(self, setup_client, app):
+        """After max failed attempts, should show cooldown."""
+        from app.routes.auth import _reset_attempts
+        _reset_attempts()  # Reset state from other tests
+
+        max_attempts = app.config.get("MAX_UNLOCK_ATTEMPTS", 5)
+        for _ in range(max_attempts):
+            setup_client.post("/auth/unlock", data={"password": "wrong"})
+
+        resp = setup_client.post("/auth/unlock", data={
+            "password": "wrong_again",
+        }, follow_redirects=True)
+        assert b"Too many failed attempts" in resp.data or b"Locked out" in resp.data
+
+    def test_successful_unlock_resets_attempts(self, setup_client):
+        """Successful unlock should reset the attempt counter."""
+        from app.routes.auth import _unlock_attempts, _reset_attempts
+        _reset_attempts()
+
+        # Fail a few times
+        setup_client.post("/auth/unlock", data={"password": "wrong"})
+        setup_client.post("/auth/unlock", data={"password": "wrong"})
+
+        # Succeed
+        setup_client.post("/auth/unlock", data={"password": STRONG_PASSWORD})
+
+        assert _unlock_attempts["count"] == 0
+
+
+class TestSecurityHeaders:
+    """Tests for security response headers."""
+
+    def test_x_frame_options(self, setup_client):
+        resp = setup_client.get("/auth/unlock")
+        assert resp.headers.get("X-Frame-Options") == "DENY"
+
+    def test_x_content_type_options(self, setup_client):
+        resp = setup_client.get("/auth/unlock")
+        assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+
+    def test_referrer_policy(self, setup_client):
+        resp = setup_client.get("/auth/unlock")
+        assert resp.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+    def test_content_security_policy(self, setup_client):
+        resp = setup_client.get("/auth/unlock")
+        csp = resp.headers.get("Content-Security-Policy", "")
+        assert "default-src 'self'" in csp
+        assert "frame-ancestors 'none'" in csp
+
+    def test_cache_control_on_authenticated_pages(self, setup_client):
+        """Authenticated pages should have no-cache headers."""
+        setup_client.post("/auth/unlock", data={"password": STRONG_PASSWORD})
+        resp = setup_client.get("/vault/")
+        assert "no-store" in resp.headers.get("Cache-Control", "")
+
+
+class TestSessionFixation:
+    """Verify session fixation protection."""
+
+    def test_session_cleared_on_unlock(self, setup_client):
+        """session.clear() is called before setting fernet_key (verified by fresh session)."""
+        # Inject a marker into the pre-auth session
+        with setup_client.session_transaction() as sess:
+            sess["pre_auth_marker"] = "should_be_gone"
+
+        # Unlock
+        setup_client.post("/auth/unlock", data={"password": STRONG_PASSWORD})
+
+        # The marker should be gone (session was cleared)
+        with setup_client.session_transaction() as sess:
+            assert "pre_auth_marker" not in sess
+            assert "fernet_key" in sess

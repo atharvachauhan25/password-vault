@@ -23,7 +23,8 @@
                         <label for="password" class="form-label">Master Password</label>
                         <div class="input-group">
                             <input type="password" class="form-control" id="password"
-                                   name="password" required autofocus>
+                                   name="password" required autofocus
+                                   {% if rate_limited %}disabled{% endif %}>
                             <button class="btn btn-outline-secondary" type="button"
                                     onclick="toggleVisibility()">
                                 <i class="bi bi-eye" id="eyeIcon"></i>
@@ -31,7 +32,15 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-warning w-100" id="submitBtn">
+                    {% if rate_limited %}
+                    <div class="alert alert-danger py-2 text-center" id="cooldownAlert">
+                        <i class="bi bi-shield-exclamation"></i>
+                        Locked out. Try again in <strong id="cooldownTimer">{{ wait_seconds }}</strong>s
+                    </div>
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-warning w-100" id="submitBtn"
+                            {% if rate_limited %}disabled{% endif %}>
                         <i class="bi bi-unlock-fill"></i> Unlock
                     </button>
                 </form>
@@ -61,5 +70,23 @@
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Unlocking...';
     });
+
+    // Cooldown countdown timer
+    const timerEl = document.getElementById('cooldownTimer');
+    if (timerEl) {
+        let remaining = parseInt(timerEl.textContent, 10);
+        const interval = setInterval(() => {
+            remaining--;
+            timerEl.textContent = remaining;
+            if (remaining <= 0) {
+                clearInterval(interval);
+                // Re-enable the form
+                document.getElementById('password').disabled = false;
+                document.getElementById('submitBtn').disabled = false;
+                const alert = document.getElementById('cooldownAlert');
+                if (alert) alert.remove();
+            }
+        }, 1000);
+    }
 </script>
 {% endblock %}

@@ -5,6 +5,7 @@ import sqlite3
 import time
 
 import pytest
+from cachelib import FileSystemCache
 
 from app import create_app
 from app.config import Config
@@ -12,13 +13,14 @@ from app.config import Config
 
 class AppTestConfig(Config):
     TESTING = True
-    SESSION_TYPE = "filesystem"
+    SESSION_TYPE = "cachelib"
+    SESSION_USE_SIGNER = False
     INACTIVITY_TIMEOUT = 300
     CLIPBOARD_CLEAR_SECONDS = 30
 
     def __init__(self, db_path, session_dir):
         self.DATABASE_PATH = db_path
-        self.SESSION_FILE_DIR = session_dir
+        self.SESSION_CACHELIB = FileSystemCache(cache_dir=session_dir, threshold=500)
 
 
 class ShortTimeoutConfig(AppTestConfig):
